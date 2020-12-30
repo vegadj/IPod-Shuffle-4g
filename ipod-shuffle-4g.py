@@ -23,6 +23,7 @@ except ImportError:
 
 audio_ext = (".mp3", ".m4a", ".m4b", ".m4p", ".aa", ".wav")
 list_ext = (".pls", ".m3u")
+tts_ext = ".wav"
 def make_dir_if_absent(path):
     try:
         os.makedirs(path)
@@ -97,7 +98,7 @@ def group_tracks_by_id3_template(tracks, template):
     return sorted(grouped_tracks_dict.items())
 
 class Text2Speech(object):
-    valid_tts = {'pico2wave': True, 'RHVoice': True, 'espeak': True}
+    valid_tts = {'pico2wave': True, 'RHVoice': True, 'espeak': True, 'macossay': True}
 
     @staticmethod
     def check_support():
@@ -109,6 +110,15 @@ class Text2Speech(object):
             print("Warning: pico2wave not found, voicever won't be generated using it.")
         else:
             voiceoverAvailable = True
+		
+		# Check for macos say voiceover
+        if not exec_exists_in_path("say"):
+            Text2Speech.valid_tts['macossay'] = False
+            print("Warning: macos say not found, voicever won't be generated using it.")
+        else:
+            voiceoverAvailable = True
+            global tts_ext
+            tts_ext = ".aif"
 
         # Check for espeak voiceover
         if not exec_exists_in_path("espeak"):
@@ -145,6 +155,8 @@ class Text2Speech(object):
         else:
             if Text2Speech.pico2wave(out_wav_path, text):
                 return True
+            elif Text2Speech.macossay(out_wav_path, text):
+                return True
             elif Text2Speech.espeak(out_wav_path, text):
                 return True
             else:
@@ -164,6 +176,17 @@ class Text2Speech(object):
             return False
         subprocess.call(["pico2wave", "-l", "en-GB", "-w", out_wav_path, unicodetext])
         return True
+
+    @staticmethod
+    def macossay(out_wav_path, unicodetext):
+        if not Text2Speech.valid_tts['macossay']:
+            return False
+        #subprocess.call(["say", "--data-format=LEI16@22050", "--channels=2", "-o", out_wav_path, unicodetext])
+        #subprocess.call(["say", "--file-format=WAVE", "--channels=2", "-o", out_wav_path, unicodetext])
+        subprocess.call(["say", "-o", out_wav_path, unicodetext])
+
+        return True
+
 
     @staticmethod
     def espeak(out_wav_path, unicodetext):
@@ -219,7 +242,7 @@ class Record(object):
         if self.track_voiceover and not playlist or self.playlist_voiceover and playlist:
             # Create the voiceover wav file
             fn = ''.join(format(x, '02x') for x in reversed(dbid))
-            path = os.path.join(self.base, "iPod_Control", "Speakable", "Tracks" if not playlist else "Playlists", fn + ".wav")
+            path = os.path.join(self.base, "iPod_Control", "Speakable", "Tracks" if not playlist else "Playlists", fn + tts_ext)
             return Text2Speech.text2speech(path, text)
         return False
 
@@ -464,7 +487,7 @@ class Playlist(Record):
     def set_master(self, tracks):
         # By default use "All Songs" builtin voiceover (dbid all zero)
         # Else generate alternative "All Songs" to fit the speaker voice of other playlists
-        if self.playlist_voiceover and (Text2Speech.valid_tts['pico2wave'] or Text2Speech.valid_tts['espeak']):
+        if self.playlist_voiceover and (Text2Speech.valid_tts['pico2wave'] or Text2Speech.valid_tts['espeak'] or Text2Speech.valid_tts['macossay']):
             self["dbid"] = hashlib.md5(b"masterlist").digest()[:8]
             self.text_to_speech("All songs", self["dbid"], True)
         self["listtype"] = 1
@@ -632,8 +655,9 @@ class Shuffler(object):
 
         if self.auto_id3_playlists != None:
             if mutagen:
-                for grouped_list in group_tracks_by_id3_template(self.tracks, self.auto_id3_playlists):
-                    self.lists.append(grouped_list)
+                for playlist in self.auto_id3_playlists.split(","):
+                   for grouped_list in group_tracks_by_id3_template(self.tracks, playlist):
+                       self.lists.append(grouped_list)
             else:
                 print("Error: No mutagen found. Cannot generate auto-id3-playlists.")
                 sys.exit(1)
