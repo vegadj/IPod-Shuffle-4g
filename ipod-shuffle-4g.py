@@ -762,7 +762,9 @@ if __name__ == '__main__':
     'based on which id3 tags are used to generate playlists. For eg. '
     '\'{artist} - {album}\' will use the pair of artist and album to group '
     'tracks under one playlist. Similarly \'{genre}\' will group tracks based '
-    'on their genre tag. Default template used is \'{artist}\'')
+    'on their genre tag. To create multiple keywords for playlist scheme use comma \',\'  '
+    'as separator. For eg. \'{artist},{genre}\' will create playlist both artists and genres. '
+    'Default template used is \'{artist}\'')
 
     parser.add_argument('-v', '--verbose', action='store_true',
     help='Show verbose output of database generation.')
